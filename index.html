@@ -2,25 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pro Parking Simulator</title>
+    <title>Pro Parking Simulator - Full Screen</title>
     <style>
         body {
             background-color: #1a1a1a;
             color: #ecf0f1;
             font-family: 'Segoe UI', sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
             margin: 0;
-            overflow: hidden;
+            padding: 0;
+            overflow: hidden; /* Stop scrollbars */
+            width: 100vw;
+            height: 100vh;
         }
         #game-container {
-            position: relative;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
-            border: 8px solid #2c3e50;
-            border-radius: 4px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
         }
         canvas {
             background-color: #34495e; /* Asphalt color */
@@ -48,6 +47,7 @@
             font-weight: bold;
             text-shadow: 2px 2px 4px black;
             display: none;
+            pointer-events: none;
         }
         #end-screen {
             position: absolute;
@@ -70,6 +70,7 @@
             border: none;
             cursor: pointer;
             border-radius: 5px;
+            pointer-events: all;
         }
         button:hover { background: #2ecc71; }
     </style>
@@ -77,11 +78,14 @@
 <body>
 
 <div id="game-container">
-    <canvas id="gameCanvas" width="900" height="650"></canvas>
+    <canvas id="gameCanvas"></canvas>
     
     <div id="ui-layer">
         <div id="level-title">Level 1</div>
         <div id="level-hint" class="hud-text">Hint: Park in the box</div>
+        <div class="hud-text" style="margin-top: 15px; color: #bdc3c7;">
+            Controls: <strong>Arrows / WASD</strong> to Drive | <strong>Space</strong> to Brake | <strong>R</strong> to Restart Level
+        </div>
     </div>
     
     <div id="status-msg">PARKED!</div>
@@ -103,10 +107,6 @@
     </div>
 </div>
 
-<div style="margin-top: 15px; color: #bdc3c7;">
-    Controls: <strong>Arrows / WASD</strong> to Drive | <strong>Space</strong> to Brake | <strong>R</strong> to Restart Level
-</div>
-
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
@@ -118,6 +118,14 @@
     const endScreen = document.getElementById('end-screen');
     const scoreBody = document.getElementById('score-body');
     const finalScoreText = document.getElementById('final-score-text');
+
+    // --- Screen Resize Logic ---
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas(); // Set initial size
 
     // --- Game Config ---
     const CAR_W = 26;
@@ -137,7 +145,7 @@
 
         // Body
         ctx.fillStyle = color;
-        // Rounded corners for better look
+        // Rounded corners
         ctx.beginPath();
         ctx.roundRect(-CAR_W/2, -CAR_H/2, CAR_W, CAR_H, 4);
         ctx.fill();
@@ -145,7 +153,7 @@
         // Windshield
         ctx.fillStyle = "#2c3e50";
         ctx.fillRect(-CAR_W/2 + 2, -CAR_H/2 + 10, CAR_W - 4, 10); // Front
-        ctx.fillRect(-CAR_W/2 + 2, CAR_H/2 - 12, CAR_W - 4, 6);   // Rear
+        ctx.fillRect(-CAR_W/2 + 2, CAR_H/2 - 12, CAR_W - 4, 6);    // Rear
 
         // Lights
         if (!isTraffic) {
@@ -172,7 +180,7 @@
     }
 
     // --- Physics & Logic ---
-    let gameState = "PLAYING"; // PLAYING, CRASHED, PARKED, END
+    let gameState = "PLAYING"; 
     let levelIndex = 0;
     let levelScores = [];
 
@@ -220,7 +228,7 @@
         constructor(x, y, w, h, speedX, speedY) {
             this.x = x; this.y = y; this.w = w; this.h = h;
             this.vx = speedX; this.vy = speedY;
-            // Determine angle based on velocity for drawing
+            
             if (Math.abs(this.vy) > Math.abs(this.vx)) {
                 this.angle = this.vy > 0 ? Math.PI : 0;
             } else {
@@ -230,7 +238,7 @@
         update() {
             this.x += this.vx;
             this.y += this.vy;
-            // Wrap around
+            // Wrap around using dynamic canvas size
             if (this.x > canvas.width + 50) this.x = -50;
             if (this.x < -50) this.x = canvas.width + 50;
             if (this.y > canvas.height + 50) this.y = -50;
@@ -248,7 +256,6 @@
     function getRotatedRect(x, y, w, h, angle) {
         const points = [];
         const dx = w/2, dy = h/2;
-        // 4 corners relative to center
         const corners = [{x:-dx, y:-dy}, {x:dx, y:-dy}, {x:dx, y:dy}, {x:-dx, y:dy}];
         for(let p of corners) {
             points.push({
@@ -265,7 +272,7 @@
             for (let i = 0; i < polygon.length; i++) {
                 const p1 = polygon[i];
                 const p2 = polygon[(i + 1) % polygon.length];
-                const normal = { x: p2.y - p1.y, y: p1.x - p2.x }; // Perpendicular
+                const normal = { x: p2.y - p1.y, y: p1.x - p2.x }; 
                 
                 let minA = Infinity, maxA = -Infinity;
                 for (let p of poly1) {
@@ -291,22 +298,22 @@
     const levels = [
         {
             name: "1. The Basics", hint: "Drive in head-first.",
-            start: {x: 100, y: 550, a: 0},
+            start: {x: 100, y: 300, a: 0}, // moved up a bit
             spot: {x: 100, y: 100, a: 0},
-            walls: [{x: 50, y: 50, w: 100, h: 400}], // Left barrier
+            walls: [{x: 50, y: 50, w: 100, h: 400}], 
             traffic: []
         },
         {
             name: "2. The Turn", hint: "Turn right and park.",
             start: {x: 100, y: 550, a: 0},
             spot: {x: 600, y: 400, a: Math.PI/2},
-            walls: [{x: 250, y: 250, w: 400, h: 300}], // Center block
+            walls: [{x: 250, y: 250, w: 400, h: 300}], 
             traffic: []
         },
         {
             name: "3. Back It Up", hint: "Reverse parking only.",
             start: {x: 450, y: 100, a: Math.PI},
-            spot: {x: 450, y: 500, a: Math.PI}, // Facing down
+            spot: {x: 450, y: 500, a: Math.PI}, 
             walls: [{x: 350, y: 300, w: 20, h: 250}, {x: 530, y: 300, w: 20, h: 250}],
             traffic: []
         },
@@ -336,9 +343,9 @@
             start: {x: 100, y: 350, a: Math.PI/2},
             spot: {x: 500, y: 150, a: Math.PI/2},
             walls: [
-                {x: 0, y: 100, w: 430, h: 100}, // Front car
-                {x: 570, y: 100, w: 400, h: 100}, // Back car
-                {x: 0, y: 0, w: 900, h: 100} // Curb
+                {x: 0, y: 100, w: 430, h: 100}, 
+                {x: 570, y: 100, w: 400, h: 100}, 
+                {x: 0, y: 0, w: 900, h: 100}
             ],
             traffic: []
         },
@@ -354,7 +361,7 @@
         {
             name: "8. Diagonal Alley", hint: "Tight angled parking.",
             start: {x: 100, y: 300, a: Math.PI/2},
-            spot: {x: 600, y: 150, a: Math.PI/4}, // 45 deg
+            spot: {x: 600, y: 150, a: Math.PI/4}, 
             walls: [
                 {x: 400, y: 0, w: 20, h: 200},
                 {x: 750, y: 0, w: 20, h: 300},
@@ -366,7 +373,7 @@
             name: "9. Busy Lot", hint: "Cross traffic to park.",
             start: {x: 450, y: 600, a: 0},
             spot: {x: 80, y: 300, a: -Math.PI/2},
-            walls: [{x: 200, y: 100, w: 500, h: 400}], // Central Island
+            walls: [{x: 200, y: 100, w: 500, h: 400}], 
             traffic: [
                 {x: 0, y: 50, vx: 5, vy: 0},
                 {x: 900, y: 550, vx: -5, vy: 0},
@@ -424,7 +431,6 @@
 
         // 1. Walls
         for (let w of currentLvlData.walls) {
-            // Wall Rect
             const wPoly = [
                 {x: w.x, y: w.y}, {x: w.x+w.w, y: w.y}, 
                 {x: w.x+w.w, y: w.y+w.h}, {x: w.x, y: w.y+w.h}
@@ -438,7 +444,7 @@
             if (polysIntersect(pPoly, tPoly)) return true;
         }
         
-        // 3. Canvas Bounds
+        // 3. Canvas Bounds (Dynamic)
         if (player.x < 0 || player.x > canvas.width || player.y < 0 || player.y > canvas.height) return true;
 
         return false;
@@ -452,7 +458,6 @@
         const dy = player.y - s.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
 
-        // Angle diff
         let pAng = player.angle % (Math.PI*2);
         if (pAng < 0) pAng += Math.PI*2;
         let sAng = s.a % (Math.PI*2);
@@ -461,11 +466,9 @@
         let angDiff = Math.abs(pAng - sAng);
         if (angDiff > Math.PI) angDiff = (Math.PI*2) - angDiff;
 
-        // Thresholds
         if (dist < 20 && angDiff < 0.35) {
             gameState = "PARKED";
             
-            // Calculate Score
             let acc = Math.max(0, 100 - (dist * 2) - (angDiff * 50));
             acc = Math.floor(acc);
             
@@ -482,14 +485,12 @@
     }
 
     function drawScene() {
-        // Clear
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Draw Walls
-        ctx.fillStyle = "#95a5a6"; // Concrete color
+        ctx.fillStyle = "#95a5a6";
         for (let w of currentLvlData.walls) {
             ctx.fillRect(w.x, w.y, w.w, w.h);
-            // Wall Border
             ctx.strokeStyle = "#7f8c8d";
             ctx.lineWidth = 2;
             ctx.strokeRect(w.x, w.y, w.w, w.h);
@@ -504,14 +505,12 @@
         ctx.strokeStyle = "white";
         ctx.lineWidth = 4;
         ctx.beginPath();
-        // Draw corners of parking box
         ctx.moveTo(-PARK_W/2, -PARK_H/2);
         ctx.lineTo(-PARK_W/2, PARK_H/2);
         ctx.lineTo(PARK_W/2, PARK_H/2);
         ctx.lineTo(PARK_W/2, -PARK_H/2);
         ctx.stroke();
 
-        // Direction Arrow
         ctx.fillStyle = "rgba(255,255,255,0.2)";
         ctx.beginPath();
         ctx.moveTo(0, -20);
@@ -523,8 +522,7 @@
         // Draw Traffic
         traffic.forEach(t => t.draw());
 
-        // Draw Player
-        //player.draw(); // Inherited from car object logic inside update loop context
+        // Draw Player (Corrected Logic)
         drawCar(player.x, player.y, player.angle);
     }
 
@@ -567,7 +565,6 @@
         initLevel(0);
     }
 
-    // Start
     initLevel(0);
     gameLoop();
 
