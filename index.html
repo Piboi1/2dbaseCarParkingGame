@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pro Parking Simulator - Full Screen</title>
+    <title>Pro Parking Simulator - Fixed</title>
     <style>
         body {
             background-color: #1a1a1a;
@@ -10,7 +10,7 @@
             font-family: 'Segoe UI', sans-serif;
             margin: 0;
             padding: 0;
-            overflow: hidden; /* Stop scrollbars */
+            overflow: hidden;
             width: 100vw;
             height: 100vh;
         }
@@ -22,7 +22,7 @@
             height: 100%;
         }
         canvas {
-            background-color: #34495e; /* Asphalt color */
+            background-color: #34495e;
             display: block;
         }
         #ui-layer {
@@ -111,7 +111,6 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     
-    // UI Elements
     const uiLevel = document.getElementById('level-title');
     const uiHint = document.getElementById('level-hint');
     const uiStatus = document.getElementById('status-msg');
@@ -119,55 +118,44 @@
     const scoreBody = document.getElementById('score-body');
     const finalScoreText = document.getElementById('final-score-text');
 
-    // --- Screen Resize Logic ---
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
     }
     window.addEventListener('resize', resizeCanvas);
-    resizeCanvas(); // Set initial size
+    resizeCanvas(); 
 
-    // --- Game Config ---
     const CAR_W = 26;
     const CAR_H = 48;
     const PARK_W = 36;
     const PARK_H = 60;
 
-    // --- Assets (Drawing Functions) ---
     function drawCar(x, y, angle, color = "#3498db", isTraffic = false) {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(angle);
 
-        // Shadow
         ctx.fillStyle = "rgba(0,0,0,0.5)";
         ctx.fillRect(-CAR_W/2 + 2, -CAR_H/2 + 2, CAR_W, CAR_H);
 
-        // Body
         ctx.fillStyle = color;
-        // Rounded corners
         ctx.beginPath();
         ctx.roundRect(-CAR_W/2, -CAR_H/2, CAR_W, CAR_H, 4);
         ctx.fill();
 
-        // Windshield
         ctx.fillStyle = "#2c3e50";
-        ctx.fillRect(-CAR_W/2 + 2, -CAR_H/2 + 10, CAR_W - 4, 10); // Front
-        ctx.fillRect(-CAR_W/2 + 2, CAR_H/2 - 12, CAR_W - 4, 6);    // Rear
+        ctx.fillRect(-CAR_W/2 + 2, -CAR_H/2 + 10, CAR_W - 4, 10);
+        ctx.fillRect(-CAR_W/2 + 2, CAR_H/2 - 12, CAR_W - 4, 6);
 
-        // Lights
         if (!isTraffic) {
-            // Headlights
-            ctx.fillStyle = "#f1c40f"; // Yellow
+            ctx.fillStyle = "#f1c40f"; 
             ctx.fillRect(-CAR_W/2 + 2, -CAR_H/2, 6, 4);
             ctx.fillRect(CAR_W/2 - 8, -CAR_H/2, 6, 4);
             
-            // Brake lights (red)
             ctx.fillStyle = (keys.ArrowDown || keys.s || keys[" "]) ? "#ff0000" : "#7f0000";
             ctx.fillRect(-CAR_W/2 + 2, CAR_H/2 - 4, 6, 4);
             ctx.fillRect(CAR_W/2 - 8, CAR_H/2 - 4, 6, 4);
         } else {
-            // Traffic generic lights
             ctx.fillStyle = "#ecf0f1";
             ctx.fillRect(-CAR_W/2 + 2, -CAR_H/2, 6, 4);
             ctx.fillRect(CAR_W/2 - 8, -CAR_H/2, 6, 4);
@@ -179,7 +167,6 @@
         ctx.restore();
     }
 
-    // --- Physics & Logic ---
     let gameState = "PLAYING"; 
     let levelIndex = 0;
     let levelScores = [];
@@ -202,7 +189,7 @@
         update() {
             if (keys.ArrowUp || keys.w) this.speed += this.accel;
             if (keys.ArrowDown || keys.s) this.speed -= this.accel;
-            if (keys[" "]) this.speed *= 0.85; // Handbrake
+            if (keys[" "]) this.speed *= 0.85; 
 
             this.speed *= this.friction;
             if (this.speed > this.maxSpeed) this.speed = this.maxSpeed;
@@ -238,7 +225,6 @@
         update() {
             this.x += this.vx;
             this.y += this.vy;
-            // Wrap around using dynamic canvas size
             if (this.x > canvas.width + 50) this.x = -50;
             if (this.x < -50) this.x = canvas.width + 50;
             if (this.y > canvas.height + 50) this.y = -50;
@@ -252,7 +238,6 @@
         }
     }
 
-    // --- Geometry Helpers ---
     function getRotatedRect(x, y, w, h, angle) {
         const points = [];
         const dx = w/2, dy = h/2;
@@ -294,11 +279,10 @@
         return true;
     }
 
-    // --- Levels Data ---
     const levels = [
         {
             name: "1. The Basics", hint: "Drive in head-first.",
-            start: {x: 100, y: 300, a: 0}, // moved up a bit
+            start: {x: 100, y: 550, a: 0}, // FIXED: Moved y down to 550 so it's not inside the wall
             spot: {x: 100, y: 100, a: 0},
             walls: [{x: 50, y: 50, w: 100, h: 400}], 
             traffic: []
@@ -410,10 +394,8 @@
         currentLvlData = levels[idx];
         gameState = "PLAYING";
 
-        // Spawn Player
         player = new Car(currentLvlData.start.x, currentLvlData.start.y, currentLvlData.start.a);
         
-        // Spawn Traffic
         traffic = [];
         if (currentLvlData.traffic) {
             currentLvlData.traffic.forEach(t => {
@@ -429,7 +411,6 @@
     function checkCollision() {
         const pPoly = player.getPolygon();
 
-        // 1. Walls
         for (let w of currentLvlData.walls) {
             const wPoly = [
                 {x: w.x, y: w.y}, {x: w.x+w.w, y: w.y}, 
@@ -438,13 +419,11 @@
             if (polysIntersect(pPoly, wPoly)) return true;
         }
 
-        // 2. Traffic
         for (let t of traffic) {
             const tPoly = t.getPolygon();
             if (polysIntersect(pPoly, tPoly)) return true;
         }
         
-        // 3. Canvas Bounds (Dynamic)
         if (player.x < 0 || player.x > canvas.width || player.y < 0 || player.y > canvas.height) return true;
 
         return false;
@@ -487,7 +466,6 @@
     function drawScene() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw Walls
         ctx.fillStyle = "#95a5a6";
         for (let w of currentLvlData.walls) {
             ctx.fillRect(w.x, w.y, w.w, w.h);
@@ -496,7 +474,6 @@
             ctx.strokeRect(w.x, w.y, w.w, w.h);
         }
 
-        // Draw Parking Spot
         const s = currentLvlData.spot;
         ctx.save();
         ctx.translate(s.x, s.y);
@@ -519,10 +496,8 @@
         ctx.fill();
         ctx.restore();
 
-        // Draw Traffic
         traffic.forEach(t => t.draw());
 
-        // Draw Player (Corrected Logic)
         drawCar(player.x, player.y, player.angle);
     }
 
