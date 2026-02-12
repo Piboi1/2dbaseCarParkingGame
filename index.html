@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pro Parking Simulator - Pro Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pro Parking Simulator - Mobile Edition</title>
     <style>
         body {
             background-color: #1a1a1a;
@@ -13,6 +14,7 @@
             overflow: hidden;
             width: 100vw;
             height: 100vh;
+            touch-action: none; /* Prevents scroll/zoom on mobile */
         }
         #game-container {
             position: absolute;
@@ -30,15 +32,19 @@
             pointer-events: none;
         }
         #top-left {
-            position: absolute; top: 20px; left: 20px;
+            position: absolute; top: 15px; left: 20px;
         }
         #top-right {
-            position: absolute; top: 20px; right: 20px;
+            position: absolute; top: 15px; right: 20px;
             text-align: right;
         }
         #bottom-right {
-            position: absolute; bottom: 20px; right: 20px;
+            position: absolute; bottom: 120px; right: 20px;
             text-align: right;
+            display: none; /* Hide keyboard hints on mobile, show on desktop if needed */
+        }
+        @media (min-width: 1024px) {
+            #bottom-right { display: block; }
         }
 
         .hud-text {
@@ -47,8 +53,8 @@
             text-shadow: 1px 1px 2px black;
             margin-bottom: 5px;
         }
-        #level-title { color: #f1c40f; font-size: 28px; font-weight: bold; }
-        #level-timer { color: #e74c3c; font-size: 32px; font-family: monospace; font-weight: bold; }
+        #level-title { color: #f1c40f; font-size: 24px; font-weight: bold; }
+        #level-timer { color: #e74c3c; font-size: 28px; font-family: monospace; font-weight: bold; }
         
         #controls-text {
             color: #bdc3c7;
@@ -60,15 +66,71 @@
 
         #status-msg { 
             position: absolute; 
-            bottom: 80px; 
+            top: 40%; 
             width: 100%; 
             text-align: center; 
-            font-size: 40px; 
+            font-size: 30px; 
             font-weight: bold;
             text-shadow: 2px 2px 4px black;
             display: none;
             pointer-events: none;
             z-index: 5;
+        }
+
+        /* MOBILE CONTROLS */
+        #mobile-controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            height: 120px;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            z-index: 20;
+        }
+        .control-group {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+        }
+        .control-btn {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        .control-btn:active { background: rgba(255, 255, 255, 0.4); }
+        
+        #btn-gas { background: rgba(46, 204, 113, 0.3); width: 80px; height: 80px; }
+        #btn-brake { background: rgba(231, 76, 60, 0.3); width: 60px; height: 60px; font-size: 14px; margin-bottom: 5px;}
+        
+        #btn-restart-mobile {
+            pointer-events: auto;
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+            background: rgba(230, 126, 34, 0.5);
+            border: 2px solid white;
+            border-radius: 50%;
+            color: white;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         /* END SCREEN */
@@ -80,11 +142,12 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 10;
+            z-index: 30;
         }
-        table { border-collapse: collapse; margin: 20px; width: 70%; font-size: 18px; }
-        th, td { border: 1px solid #7f8c8d; padding: 12px; text-align: center; color: white; }
+        table { border-collapse: collapse; margin: 10px; width: 90%; max-width: 500px; font-size: 14px; }
+        th, td { border: 1px solid #7f8c8d; padding: 8px; text-align: center; color: white; }
         th { background-color: #e67e22; }
+        
         .grade-S { color: #f1c40f; font-weight: bold; text-shadow: 0 0 5px gold; }
         .grade-A { color: #2ecc71; font-weight: bold; }
         .grade-B { color: #3498db; }
@@ -92,7 +155,7 @@
         .grade-D { color: #95a5a6; }
         .grade-F { color: #e74c3c; }
 
-        button {
+        button.end-btn {
             padding: 15px 40px;
             font-size: 24px;
             background: #27ae60;
@@ -103,7 +166,6 @@
             pointer-events: all;
             margin-top: 20px;
         }
-        button:hover { background: #2ecc71; }
     </style>
 </head>
 <body>
@@ -116,6 +178,8 @@
             <div id="level-title">Level 1</div>
             <div id="level-hint" class="hud-text">Hint: Park in the box</div>
         </div>
+        
+        <div id="btn-restart-mobile" onclick="initLevel(levelIndex)">↺</div>
 
         <div id="top-right">
             <div class="hud-text" style="color:#bdc3c7;">TIME</div>
@@ -124,9 +188,18 @@
 
         <div id="bottom-right">
             <div id="controls-text">
-                <strong>Arrows / WASD</strong> Drive<br>
-                <strong>Space</strong> Brake<br>
-                <strong>R</strong> Restart
+                Arrows/WASD to Drive<br>Space to Brake
+            </div>
+        </div>
+
+        <div id="mobile-controls">
+            <div class="control-group">
+                <div class="control-btn" id="btn-left">◀</div>
+                <div class="control-btn" id="btn-right">▶</div>
+            </div>
+            <div class="control-group">
+                <div class="control-btn" id="btn-brake">🛑</div>
+                <div class="control-btn" id="btn-gas">▲</div>
             </div>
         </div>
     </div>
@@ -134,22 +207,23 @@
     <div id="status-msg">PARKED!</div>
 
     <div id="end-screen">
-        <h1 style="color: #f1c40f; font-size: 50px; margin: 0;">LICENSE OBTAINED!</h1>
+        <h1 style="color: #f1c40f; font-size: 40px; margin: 0;">LICENSE OBTAINED!</h1>
         <h2 id="final-grade-title" style="margin-top: 10px;">Overall Rank: S</h2>
         
-        <table id="score-table">
-            <thead>
-                <tr>
-                    <th>Lvl</th>
-                    <th>Name</th>
-                    <th>Time</th>
-                    <th>Acc</th>
-                    <th>Grade</th>
-                </tr>
-            </thead>
-            <tbody id="score-body"></tbody>
-        </table>
-        <button onclick="restartGame()">Play Again</button>
+        <div style="overflow-y: auto; max-height: 50vh; width: 100%; display: flex; justify-content: center;">
+            <table id="score-table">
+                <thead>
+                    <tr>
+                        <th>Lvl</th>
+                        <th>Time</th>
+                        <th>Acc</th>
+                        <th>Grade</th>
+                    </tr>
+                </thead>
+                <tbody id="score-body"></tbody>
+            </table>
+        </div>
+        <button class="end-btn" onclick="restartGame()">Play Again</button>
     </div>
 </div>
 
@@ -186,22 +260,18 @@
         ctx.translate(x, y);
         ctx.rotate(angle);
 
-        // Shadow
         ctx.fillStyle = "rgba(0,0,0,0.5)";
         ctx.fillRect(-CAR_W/2 + 3, -CAR_H/2 + 3, CAR_W, CAR_H);
 
-        // Body
         ctx.fillStyle = color;
         ctx.beginPath();
         ctx.roundRect(-CAR_W/2, -CAR_H/2, CAR_W, CAR_H, 4);
         ctx.fill();
 
-        // Windshield
         ctx.fillStyle = "#2c3e50";
         ctx.fillRect(-CAR_W/2 + 2, -CAR_H/2 + 10, CAR_W - 4, 10);
         ctx.fillRect(-CAR_W/2 + 2, CAR_H/2 - 12, CAR_W - 4, 6);
 
-        // Lights
         if (!isTraffic) {
             ctx.fillStyle = "#f1c40f"; 
             ctx.fillRect(-CAR_W/2 + 2, -CAR_H/2, 6, 4);
@@ -224,26 +294,38 @@
     // --- Physics ---
     let gameState = "PLAYING"; 
     let levelIndex = 0;
-    let levelResults = []; // Stores {acc, time, grade}
+    let levelResults = []; 
     
-    // Timer Variables
     let startTime = 0;
     let timerInterval = null;
     let elapsedSecs = 0;
 
     const keys = { ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false, w:false, a:false, s:false, d:false, " ":false, r:false };
 
+    // Keyboard Listeners
     window.addEventListener('keydown', e => keys[e.key] = true);
     window.addEventListener('keyup', e => {
         keys[e.key] = false;
         if(e.key.toLowerCase() === 'r') initLevel(levelIndex);
     });
 
+    // Touch Listeners
+    function addTouch(id, key) {
+        const btn = document.getElementById(id);
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+        btn.addEventListener('mousedown', (e) => { keys[key] = true; }); // Mouse support for testing
+        btn.addEventListener('mouseup', (e) => { keys[key] = false; });
+    }
+    addTouch('btn-left', 'ArrowLeft');
+    addTouch('btn-right', 'ArrowRight');
+    addTouch('btn-gas', 'ArrowUp');
+    addTouch('btn-brake', 'ArrowDown');
+
     class Car {
         constructor(x, y, angle) {
             this.x = x; this.y = y; this.angle = angle;
             this.speed = 0; 
-            // UPDATED SPEED STATS
             this.maxSpeed = 5.2; 
             this.friction = 0.95; 
             this.accel = 0.25; 
@@ -279,7 +361,6 @@
         constructor(x, y, w, h, speedX, speedY) {
             this.x = x; this.y = y; this.w = w; this.h = h;
             this.vx = speedX; this.vy = speedY;
-            
             if (Math.abs(this.vy) > Math.abs(this.vx)) {
                 this.angle = this.vy > 0 ? Math.PI : 0;
             } else {
@@ -302,7 +383,6 @@
         }
     }
 
-    // Geometry Helpers
     function getRotatedRect(x, y, w, h, angle) {
         const points = [];
         const dx = w/2, dy = h/2;
@@ -343,8 +423,6 @@
         return true;
     }
 
-    // --- LEVELS ---
-    // targetTime is used for grading
     const levels = [
         {
             name: "1. The Basics", hint: "Drive straight in.", targetTime: 8,
@@ -445,18 +523,17 @@
                 {x: 500, y: 100, vx: 0, vy: 6}
             ]
         },
-        // --- NEW HARD LEVELS ---
         {
             name: "11. The Spiral", hint: "Follow the snail.", targetTime: 25,
             start: {x: 100, y: 550, a: 0},
             spot: {x: 450, y: 350, a: -Math.PI/2},
             walls: [
-                {x: 200, y: 200, w: 20, h: 400}, // Vertical left
-                {x: 200, y: 200, w: 500, h: 20}, // Top
-                {x: 700, y: 200, w: 20, h: 300}, // Vertical right
-                {x: 400, y: 500, w: 320, h: 20}, // Bottom
-                {x: 400, y: 300, w: 20, h: 220}, // Inner Left
-                {x: 400, y: 300, w: 100, h: 20}, // Inner Top
+                {x: 200, y: 200, w: 20, h: 400}, 
+                {x: 200, y: 200, w: 500, h: 20}, 
+                {x: 700, y: 200, w: 20, h: 300}, 
+                {x: 400, y: 500, w: 320, h: 20}, 
+                {x: 400, y: 300, w: 20, h: 220}, 
+                {x: 400, y: 300, w: 100, h: 20}, 
             ],
             traffic: []
         },
@@ -465,9 +542,8 @@
             start: {x: 50, y: 325, a: Math.PI/2},
             spot: {x: 900, y: 325, a: Math.PI/2},
             walls: [
-                {x: 0, y: 280, w: 1200, h: 20}, // Top Wall
-                {x: 0, y: 350, w: 1200, h: 20}, // Bottom Wall
-                // Small obstacles in the corridor
+                {x: 0, y: 280, w: 1200, h: 20}, 
+                {x: 0, y: 350, w: 1200, h: 20}, 
                 {x: 300, y: 300, w: 10, h: 10},
                 {x: 600, y: 340, w: 10, h: 10}
             ],
@@ -504,10 +580,8 @@
         currentLvlData = levels[idx];
         gameState = "PLAYING";
 
-        // Reset Physics
         player = new Car(currentLvlData.start.x, currentLvlData.start.y, currentLvlData.start.a);
         
-        // Traffic
         traffic = [];
         if (currentLvlData.traffic) {
             currentLvlData.traffic.forEach(t => {
@@ -515,12 +589,10 @@
             });
         }
 
-        // UI Reset
         uiLevel.innerText = currentLvlData.name;
         uiHint.innerText = currentLvlData.hint;
         uiStatus.style.display = 'none';
         
-        // Timer Start
         startTime = Date.now();
         uiTimer.innerText = "00:00";
         timerInterval = setInterval(() => {
@@ -546,10 +618,9 @@
     }
 
     function calculateGrade(acc, time, target) {
-        // Penalty for being slow
         let timePenalty = 0;
         if (time > target) {
-            timePenalty = (time - target) * 3; // Lose 3% acc per second over
+            timePenalty = (time - target) * 3; 
         }
         
         const score = acc - timePenalty;
@@ -582,7 +653,6 @@
             clearInterval(timerInterval);
             gameState = "PARKED";
             
-            // Calc Stats
             let acc = Math.max(0, 100 - (dist * 2) - (angDiff * 50));
             acc = Math.floor(acc);
             
@@ -590,15 +660,13 @@
             
             levelResults.push({
                 level: levelIndex + 1,
-                name: currentLvlData.name,
                 time: elapsedSecs.toFixed(2),
                 acc: acc,
                 grade: grade
             });
 
-            // Show HUD status
             uiStatus.innerText = `PARKED! Grade: ${grade}`;
-            uiStatus.className = `grade-${grade}`; // for color
+            uiStatus.className = `grade-${grade}`; 
             uiStatus.style.color = getGradeColor(grade);
             uiStatus.style.display = "block";
             
@@ -662,7 +730,7 @@
             if (checkCollision()) {
                 gameState = "CRASHED";
                 clearInterval(timerInterval);
-                uiStatus.innerText = "CRASHED! Press 'R'";
+                uiStatus.innerText = "CRASHED!";
                 uiStatus.style.color = "#e74c3c";
                 uiStatus.style.display = "block";
             } else {
@@ -686,7 +754,6 @@
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${res.level}</td>
-                <td>${res.name}</td>
                 <td>${res.time}s</td>
                 <td>${res.acc}%</td>
                 <td class="grade-${res.grade}">${res.grade}</td>
@@ -694,7 +761,6 @@
             scoreBody.appendChild(tr);
         });
 
-        // Calculate Final Grade
         const avgGPA = gpaTotal / levelResults.length;
         let finalGrade = 'F';
         if (avgGPA >= 4.1) finalGrade = 'S';
