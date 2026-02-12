@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pro Parking Simulator - Fixed</title>
+    <title>Pro Parking Simulator - FIXED</title>
     <style>
         body {
             background-color: #1a1a1a;
@@ -279,12 +279,14 @@
         return true;
     }
 
+    // --- REVISED LEVELS DATA ---
     const levels = [
         {
-            name: "1. The Basics", hint: "Drive in head-first.",
-            start: {x: 100, y: 550, a: 0}, // FIXED: Moved y down to 550 so it's not inside the wall
-            spot: {x: 100, y: 100, a: 0},
-            walls: [{x: 50, y: 50, w: 100, h: 400}], 
+            // Level 1: Moved Wall to X:200 so it acts as a lane divider, not a blockade over the spot.
+            name: "1. The Basics", hint: "Drive straight in.",
+            start: {x: 100, y: 550, a: 0},
+            spot: {x: 100, y: 150, a: 0},
+            walls: [{x: 200, y: 50, w: 20, h: 500}], // Divider wall to the right
             traffic: []
         },
         {
