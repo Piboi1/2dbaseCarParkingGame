@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Precision Parking Simulator</title>
+    <style>
+        body {
+            background-color: #2c3e50;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #95a5a6;
+            border: 5px solid #34495e;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        #ui {
+            margin-top: 10px;
+            text-align: center;
+        }
+        #level-info {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #f1c40f;
+            margin-bottom: 5px;
+        }
+        #message {
+            height: 20px;
+            color: #e74c3c;
+        }
+        .controls {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            color: #bdc3c7;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="level-info">Level 1: Basic Head-In</div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="message"></div>
+    
+    <div class="controls">
+        Controls: <strong>Arrow Keys</strong> or <strong>WASD</strong> to drive. <br>
+        Stop completely inside the box to park. <br>
+        <strong>R</strong> to Restart Level.
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const levelText = document.getElementById('level-info');
+    const msgText = document.getElementById('message');
+
+    // Game Constants
+    const CAR_WIDTH = 30;
+    const CAR_HEIGHT = 50;
+    const PARKING_WIDTH = 40;
+    const PARKING_HEIGHT = 65;
+
+    // Game State
+    let currentLevel = 0;
+    let gameState = "PLAYING"; // PLAYING, CRASHED, PARKED
+    let score = 0;
+
+    // Input Handling
+    const keys = {
+        ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
+        w: false, s: false, a: false, d: false,
+        r: false
+    };
+
+    window.addEventListener('keydown', (e) => {
+        if(keys.hasOwnProperty(e.key) || keys.hasOwnProperty(e.key.toLowerCase())) {
+            keys[e.key] = true;
+            if(e.key.toLowerCase() === 'r') resetLevel();
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if(keys.hasOwnProperty(e.key) || keys.hasOwnProperty(e.key.toLowerCase())) {
+            keys[e.key] = false;
+        }
+    });
+
+    // Car Object
+    const car = {
+        x: 100, y: 100,
+        speed: 0,
+        angle: 0, // in radians
+        maxSpeed: 4,
+        friction: 0.95,
+        turnSpeed: 0.04,
+        acceleration: 0.15,
+        
+        corners: [], // For collision
+
+        update: function() {
+            if (gameState !== "PLAYING") return;
+
+            // Physics
+            if (keys.ArrowUp || keys.w) this.speed += this.acceleration;
+            if (keys.ArrowDown || keys.s) this.speed -= this.acceleration;
+
+            // Cap speed
+            if (this.speed > this.maxSpeed) this.speed = this.maxSpeed;
+            if (this.speed < -this.maxSpeed/2) this.speed = -this.maxSpeed/2;
+
+            // Friction
+            this.speed *= this.friction;
+
+            // Steering (only if moving)
+            if (Math.abs(this.speed) > 0.1) {
+                const dir = this.speed > 0 ? 1 : -1;
+                if (keys.ArrowLeft || keys.a) this.angle -= this.turnSpeed * dir;
+                if (keys.ArrowRight || keys.d) this.angle += this.turnSpeed * dir;
+            }
+
+            // Update Position
+            this.x += Math.sin(this.angle) * this.speed;
+            this.y -= Math.cos(this.angle) * this.speed;
+
+            // Calculate Corners for Collision
+            this.corners = this.getRotatedCorners(this.x, this.y, CAR_WIDTH, CAR_HEIGHT, this.angle);
+
+            // Wall Collision Check
+            if (checkWallCollision(this.corners)) {
+                gameState = "CRASHED";
+                msgText.innerText = "CRASHED! Press R to restart.";
+                msgText.style.color = "#e74c3c";
+            }
+
+            // Parking Check
+            checkParking();
+        },
+
+        getRotatedCorners: function(x, y, w, h, angle) {
+            // Helper to get 4 corners of rotated rectangle
+            const corners = [];
+            // Relative corners
+            const relCorners = [
+                {x: -w/2, y: -h/2}, {x: w/2, y: -h/2},
+                {x: w/2, y: h/2},   {x: -w/2, y: h/2}
+            ];
+            
+            relCorners.forEach(pt => {
+                // Rotate
+                const rx = pt.x * Math.cos(angle) - pt.y * Math.sin(angle);
+                const ry = pt.x * Math.sin(angle) + pt.y * Math.cos(angle);
+                // Translate + coordinate flip correction for canvas (up is -y)
+                // Actually simple rotation matrix:
+                // x' = x cos θ - y sin θ
+                // y' = x sin θ + y cos θ
+                // But our car 0 deg is UP (-y). 
+                
+                // Let's use standard rotation around center
+                const dx = pt.x; 
+                const dy = pt.y;
+                // Rotated:
+                const rdx = dx * Math.cos(this.angle) - dy * Math.sin(this.angle);
+                const rdy = dx * Math.sin(this.angle) + dy * Math.cos(this.angle);
+
+                corners.push({
+                    x: this.x + rdx,
+                    y: this.y + rdy // Note: Logic slightly adjusted for visual alignment
+                });
+            });
+            return corners;
+        },
+
+        draw: function() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+            
+            // Body
+            ctx.fillStyle = gameState === "CRASHED" ? "#c0392b" : "#3498db";
+            ctx.fillRect(-CAR_WIDTH/2, -CAR_HEIGHT/2, CAR_WIDTH, CAR_HEIGHT);
+
+            // Headlights (to show front)
+            ctx.fillStyle = "#f1c40f";
+            ctx.fillRect(-CAR_WIDTH/2 + 2, -CAR_HEIGHT/2, 8, 5);
+            ctx.fillRect(CAR_WIDTH/2 - 10, -CAR_HEIGHT/2, 8, 5);
+
+            // Tail lights
+            ctx.fillStyle = "#e74c3c";
+            ctx.fillRect(-CAR_WIDTH/2 + 2, CAR_HEIGHT/2 - 5, 8, 5);
+            ctx.fillRect(CAR_WIDTH/2 - 10, CAR_HEIGHT/2 - 5, 8, 5);
+
+            ctx.restore();
+        }
+    };
+
+    // Level Definition
+    const levels = [
+        {
+            name: "1. The Basics",
+            hint: "Park inside the box facing UP",
+            start: {x: 100, y: 500, angle: 0},
+            walls: [
+                {x: 0, y: 0, w: 800, h: 20}, // Top
+                {x: 0, y: 580, w: 800, h: 20}, // Bottom
+                {x: 0, y: 0, w: 20, h: 600}, // Left
+                {x: 780, y: 0, w: 20, h: 600}, // Right
+                {x: 300, y: 100, w: 20, h: 300}, // Middle divider
+            ],
+            spot: {x: 600, y: 100, angle: 0} // 0 = Face Up
+        },
+        {
+            name: "2. Tight Turn",
+            hint: "Park facing RIGHT",
+            start: {x: 100, y: 500, angle: 0},
+            walls: [
+                {x: 0, y: 0, w: 800, h: 20}, 
+                {x: 0, y: 580, w: 800, h: 20},
+                {x: 0, y: 0, w: 20, h: 600}, 
+                {x: 780, y: 0, w: 20, h: 600},
+                {x: 200, y: 200, w: 400, h: 200}, // Center block
+            ],
+            spot: {x: 700, y: 300, angle: Math.PI / 2} 
+        },
+        {
+            name: "3. Reverse Parking",
+            hint: "Back into the spot (Face DOWN)",
+            start: {x: 100, y: 100, angle: Math.PI / 2},
+            walls: [
+                {x: 0, y: 0, w: 800, h: 20}, 
+                {x: 0, y: 580, w: 800, h: 20},
+                {x: 0, y: 0, w: 20, h: 600}, 
+                {x: 780, y: 0, w: 20, h: 600},
+                {x: 350, y: 350, w: 20, h: 250}, 
+                {x: 450, y: 350, w: 20, h: 250}, 
+            ],
+            spot: {x: 410, y: 500, angle: Math.PI} // Face Down
+        },
+        {
+            name: "4. The Parallel",
+            hint: "Parallel Park between walls",
+            start: {x: 50, y: 300, angle: Math.PI/2},
+            walls: [
+                {x: 0, y: 0, w: 800, h: 20}, 
+                {x: 0, y: 580, w: 800, h: 20},
+                {x: 0, y: 0, w: 20, h: 600}, 
+                {x: 780, y: 0, w: 20, h: 600},
+                
+                {x: 300, y: 200, w: 200, h: 50}, // Car in front
+                {x: 650, y: 200, w: 150, h: 50}, // Car behind
+                {x: 300, y: 200, w: 20, h: 100}, // Curb logic
+            ],
+            spot: {x: 575, y: 225, angle: Math.PI / 2}
+        }
+    ];
+
+    function resetLevel() {
+        if (currentLevel >= levels.length) currentLevel = 0;
+        
+        const lvl = levels[currentLevel];
+        car.x = lvl.start.x;
+        car.y = lvl.start.y;
+        car.angle = lvl.start.angle;
+        car.speed = 0;
+        gameState = "PLAYING";
+        msgText.innerText = "";
+        levelText.innerText = `${lvl.name} - ${lvl.hint}`;
+    }
+
+    function checkWallCollision(corners) {
+        const lvl = levels[currentLevel];
+        
+        // Simple Point vs Rect collision for each car corner
+        for (let c of corners) {
+            for (let w of lvl.walls) {
+                if (c.x > w.x && c.x < w.x + w.w &&
+                    c.y > w.y && c.y < w.y + w.h) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    function checkParking() {
+        if (Math.abs(car.speed) > 0.1) return; // Must be stopped
+
+        const lvl = levels[currentLevel];
+        const spot = lvl.spot;
+
+        // Calculate Distance Accuracy
+        const dx = car.x - spot.x;
+        const dy = car.y - spot.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        // Calculate Angle Accuracy (Normalize angles)
+        let carAng = car.angle % (Math.PI * 2);
+        if (carAng < 0) carAng += Math.PI * 2;
+        
+        let spotAng = spot.angle % (Math.PI * 2);
+        if (spotAng < 0) spotAng += Math.PI * 2;
+
+        let angDiff = Math.abs(carAng - spotAng);
+        if (angDiff > Math.PI) angDiff = (Math.PI * 2) - angDiff;
+
+        // Tolerances
+        const maxDist = 20; // Pixels
+        const maxAng = 0.3; // Radians (~17 degrees)
+
+        if (dist < maxDist && angDiff < maxAng) {
+            // Success!
+            gameState = "PARKED";
+            
+            // Calculate Score %
+            const distScore = Math.max(0, 100 - (dist / maxDist) * 50);
+            const angScore = Math.max(0, 100 - (angDiff / maxAng) * 50);
+            const totalScore = Math.floor((distScore + angScore) / 2);
+
+            msgText.innerText = `PARKED! Accuracy: ${totalScore}%. Loading next level...`;
+            msgText.style.color = "#2ecc71";
+
+            setTimeout(() => {
+                currentLevel++;
+                if (currentLevel >= levels.length) {
+                    alert("You beat the game! Starting over.");
+                    currentLevel = 0;
+                }
+                resetLevel();
+            }, 2000);
+        }
+    }
+
+    function drawLevel() {
+        const lvl = levels[currentLevel];
+
+        // Draw Walls
+        ctx.fillStyle = "#34495e";
+        for (let w of lvl.walls) {
+            ctx.fillRect(w.x, w.y, w.w, w.h);
+        }
+
+        // Draw Parking Spot
+        ctx.save();
+        ctx.translate(lvl.spot.x, lvl.spot.y);
+        ctx.rotate(lvl.spot.angle);
+        
+        // Spot Outline
+        ctx.strokeStyle = "#2ecc71";
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(-PARKING_WIDTH/2 - 5, -PARKING_HEIGHT/2 - 5, PARKING_WIDTH + 10, PARKING_HEIGHT + 10);
+        
+        // Direction Arrow
+        ctx.fillStyle = "rgba(46, 204, 113, 0.3)";
+        ctx.beginPath();
+        ctx.moveTo(0, -20);
+        ctx.lineTo(-10, 0);
+        ctx.lineTo(10, 0);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    function gameLoop() {
+        // Clear
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Update
+        car.update();
+
+        // Draw
+        drawLevel();
+        car.draw();
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Initialize
+    resetLevel();
+    gameLoop();
+
+</script>
+</body>
+</html>
