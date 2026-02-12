@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pro Parking Simulator - All Levels Fixed</title>
+    <title>Pro Parking Simulator - Pro Edition</title>
     <style>
         body {
             background-color: #1a1a1a;
@@ -16,61 +16,92 @@
         }
         #game-container {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0; width: 100%; height: 100%;
         }
         canvas {
             background-color: #34495e;
             display: block;
         }
+        
+        /* UI LAYOUT */
         #ui-layer {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none;
         }
+        #top-left {
+            position: absolute; top: 20px; left: 20px;
+        }
+        #top-right {
+            position: absolute; top: 20px; right: 20px;
+            text-align: right;
+        }
+        #bottom-right {
+            position: absolute; bottom: 20px; right: 20px;
+            text-align: right;
+        }
+
         .hud-text {
             font-size: 18px;
             font-weight: 600;
             text-shadow: 1px 1px 2px black;
             margin-bottom: 5px;
         }
-        #level-title { color: #f1c40f; font-size: 24px; }
+        #level-title { color: #f1c40f; font-size: 28px; font-weight: bold; }
+        #level-timer { color: #e74c3c; font-size: 32px; font-family: monospace; font-weight: bold; }
+        
+        #controls-text {
+            color: #bdc3c7;
+            font-size: 16px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
         #status-msg { 
             position: absolute; 
             bottom: 80px; 
             width: 100%; 
             text-align: center; 
-            font-size: 28px; 
+            font-size: 40px; 
             font-weight: bold;
             text-shadow: 2px 2px 4px black;
             display: none;
             pointer-events: none;
+            z-index: 5;
         }
+
+        /* END SCREEN */
         #end-screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9);
+            background: rgba(0,0,0,0.95);
             display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             z-index: 10;
         }
-        table { border-collapse: collapse; margin: 20px; width: 60%; }
-        th, td { border: 1px solid #7f8c8d; padding: 10px; text-align: center; color: white; }
+        table { border-collapse: collapse; margin: 20px; width: 70%; font-size: 18px; }
+        th, td { border: 1px solid #7f8c8d; padding: 12px; text-align: center; color: white; }
         th { background-color: #e67e22; }
+        .grade-S { color: #f1c40f; font-weight: bold; text-shadow: 0 0 5px gold; }
+        .grade-A { color: #2ecc71; font-weight: bold; }
+        .grade-B { color: #3498db; }
+        .grade-C { color: #e67e22; }
+        .grade-D { color: #95a5a6; }
+        .grade-F { color: #e74c3c; }
+
         button {
-            padding: 15px 30px;
-            font-size: 20px;
+            padding: 15px 40px;
+            font-size: 24px;
             background: #27ae60;
             color: white;
             border: none;
             cursor: pointer;
             border-radius: 5px;
             pointer-events: all;
+            margin-top: 20px;
         }
         button:hover { background: #2ecc71; }
     </style>
@@ -81,24 +112,39 @@
     <canvas id="gameCanvas"></canvas>
     
     <div id="ui-layer">
-        <div id="level-title">Level 1</div>
-        <div id="level-hint" class="hud-text">Hint: Park in the box</div>
-        <div class="hud-text" style="margin-top: 15px; color: #bdc3c7;">
-            Controls: <strong>Arrows / WASD</strong> to Drive | <strong>Space</strong> to Brake | <strong>R</strong> to Restart Level
+        <div id="top-left">
+            <div id="level-title">Level 1</div>
+            <div id="level-hint" class="hud-text">Hint: Park in the box</div>
+        </div>
+
+        <div id="top-right">
+            <div class="hud-text" style="color:#bdc3c7;">TIME</div>
+            <div id="level-timer">00:00</div>
+        </div>
+
+        <div id="bottom-right">
+            <div id="controls-text">
+                <strong>Arrows / WASD</strong> Drive<br>
+                <strong>Space</strong> Brake<br>
+                <strong>R</strong> Restart
+            </div>
         </div>
     </div>
     
     <div id="status-msg">PARKED!</div>
 
     <div id="end-screen">
-        <h1 style="color: #f1c40f; font-size: 40px;">LICENSE OBTAINED!</h1>
-        <h3 id="final-score-text">Total Average: 0%</h3>
+        <h1 style="color: #f1c40f; font-size: 50px; margin: 0;">LICENSE OBTAINED!</h1>
+        <h2 id="final-grade-title" style="margin-top: 10px;">Overall Rank: S</h2>
+        
         <table id="score-table">
             <thead>
                 <tr>
-                    <th>Level</th>
+                    <th>Lvl</th>
                     <th>Name</th>
-                    <th>Accuracy</th>
+                    <th>Time</th>
+                    <th>Acc</th>
+                    <th>Grade</th>
                 </tr>
             </thead>
             <tbody id="score-body"></tbody>
@@ -111,13 +157,16 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     
+    // UI Elements
     const uiLevel = document.getElementById('level-title');
     const uiHint = document.getElementById('level-hint');
+    const uiTimer = document.getElementById('level-timer');
     const uiStatus = document.getElementById('status-msg');
     const endScreen = document.getElementById('end-screen');
     const scoreBody = document.getElementById('score-body');
-    const finalScoreText = document.getElementById('final-score-text');
+    const finalGradeTitle = document.getElementById('final-grade-title');
 
+    // Canvas Resize
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -125,28 +174,34 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas(); 
 
+    // Constants
     const CAR_W = 26;
     const CAR_H = 48;
     const PARK_W = 36;
     const PARK_H = 60;
 
+    // Drawing
     function drawCar(x, y, angle, color = "#3498db", isTraffic = false) {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(angle);
 
+        // Shadow
         ctx.fillStyle = "rgba(0,0,0,0.5)";
-        ctx.fillRect(-CAR_W/2 + 2, -CAR_H/2 + 2, CAR_W, CAR_H);
+        ctx.fillRect(-CAR_W/2 + 3, -CAR_H/2 + 3, CAR_W, CAR_H);
 
+        // Body
         ctx.fillStyle = color;
         ctx.beginPath();
         ctx.roundRect(-CAR_W/2, -CAR_H/2, CAR_W, CAR_H, 4);
         ctx.fill();
 
+        // Windshield
         ctx.fillStyle = "#2c3e50";
         ctx.fillRect(-CAR_W/2 + 2, -CAR_H/2 + 10, CAR_W - 4, 10);
         ctx.fillRect(-CAR_W/2 + 2, CAR_H/2 - 12, CAR_W - 4, 6);
 
+        // Lights
         if (!isTraffic) {
             ctx.fillStyle = "#f1c40f"; 
             ctx.fillRect(-CAR_W/2 + 2, -CAR_H/2, 6, 4);
@@ -163,13 +218,18 @@
             ctx.fillRect(-CAR_W/2 + 2, CAR_H/2 - 4, 6, 4);
             ctx.fillRect(CAR_W/2 - 8, CAR_H/2 - 4, 6, 4);
         }
-
         ctx.restore();
     }
 
+    // --- Physics ---
     let gameState = "PLAYING"; 
     let levelIndex = 0;
-    let levelScores = [];
+    let levelResults = []; // Stores {acc, time, grade}
+    
+    // Timer Variables
+    let startTime = 0;
+    let timerInterval = null;
+    let elapsedSecs = 0;
 
     const keys = { ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false, w:false, a:false, s:false, d:false, " ":false, r:false };
 
@@ -182,8 +242,12 @@
     class Car {
         constructor(x, y, angle) {
             this.x = x; this.y = y; this.angle = angle;
-            this.speed = 0; this.maxSpeed = 3.5; this.friction = 0.94; 
-            this.accel = 0.1; this.turnSpeed = 0.045;
+            this.speed = 0; 
+            // UPDATED SPEED STATS
+            this.maxSpeed = 5.2; 
+            this.friction = 0.95; 
+            this.accel = 0.25; 
+            this.turnSpeed = 0.055; 
         }
 
         update() {
@@ -238,6 +302,7 @@
         }
     }
 
+    // Geometry Helpers
     function getRotatedRect(x, y, w, h, angle) {
         const points = [];
         const dx = w/2, dy = h/2;
@@ -272,52 +337,49 @@
                     if (projected < minB) minB = projected;
                     if (projected > maxB) maxB = projected;
                 }
-
                 if (maxA < minB || maxB < minA) return false;
             }
         }
         return true;
     }
 
-    // --- AUDITED & FIXED LEVELS DATA ---
+    // --- LEVELS ---
+    // targetTime is used for grading
     const levels = [
         {
-            name: "1. The Basics", hint: "Drive straight in.",
+            name: "1. The Basics", hint: "Drive straight in.", targetTime: 8,
             start: {x: 100, y: 550, a: 0},
             spot: {x: 100, y: 150, a: 0},
             walls: [{x: 200, y: 50, w: 20, h: 500}], 
             traffic: []
         },
         {
-            name: "2. The Turn", hint: "Turn right and park.",
+            name: "2. The Turn", hint: "Turn right and park.", targetTime: 12,
             start: {x: 100, y: 550, a: 0},
-            // FIXED: Spot was inside the wall (x:600). Moved to 750.
             spot: {x: 750, y: 400, a: Math.PI/2},
             walls: [{x: 250, y: 250, w: 400, h: 300}], 
             traffic: []
         },
         {
-            name: "3. Back It Up", hint: "Reverse parking only.",
+            name: "3. Back It Up", hint: "Reverse parking only.", targetTime: 15,
             start: {x: 450, y: 100, a: Math.PI},
             spot: {x: 450, y: 500, a: Math.PI}, 
-            // FIXED: Widened the gap slightly to avoid clipping.
             walls: [{x: 320, y: 300, w: 20, h: 250}, {x: 560, y: 300, w: 20, h: 250}],
             traffic: []
         },
         {
-            name: "4. Static Traffic", hint: "Navigate the parked cars.",
+            name: "4. Static Traffic", hint: "Navigate the parked cars.", targetTime: 18,
             start: {x: 50, y: 325, a: Math.PI/2},
             spot: {x: 800, y: 325, a: Math.PI/2},
             walls: [
                 {x: 200, y: 100, w: 30, h: 100}, {x: 200, y: 450, w: 30, h: 100},
                 {x: 400, y: 200, w: 30, h: 250}, 
-                // FIXED: Ensured gap is 200px (0-200, 400-600)
                 {x: 600, y: 0, w: 30, h: 200}, {x: 600, y: 450, w: 30, h: 200}
             ],
             traffic: []
         },
         {
-            name: "5. Highway Crossing", hint: "Watch out for cars!",
+            name: "5. Highway Crossing", hint: "Watch out for cars!", targetTime: 10,
             start: {x: 450, y: 600, a: 0},
             spot: {x: 450, y: 50, a: 0},
             walls: [],
@@ -327,19 +389,18 @@
             ]
         },
         {
-            name: "6. Parallel Park", hint: "Fit between the barriers.",
+            name: "6. Parallel Park", hint: "Fit between the barriers.", targetTime: 20,
             start: {x: 100, y: 350, a: Math.PI/2},
             spot: {x: 500, y: 150, a: Math.PI/2},
             walls: [
-                // FIXED: Increased gap size from 140px to 200px for easier parking
                 {x: 0, y: 100, w: 400, h: 100}, 
                 {x: 600, y: 100, w: 400, h: 100}, 
-                {x: 0, y: 0, w: 1200, h: 100} // Curb
+                {x: 0, y: 0, w: 1200, h: 100} 
             ],
             traffic: []
         },
         {
-            name: "7. The Gauntlet", hint: "Moving traffic + Walls.",
+            name: "7. The Gauntlet", hint: "Moving traffic + Walls.", targetTime: 18,
             start: {x: 50, y: 50, a: Math.PI/2},
             spot: {x: 800, y: 550, a: Math.PI},
             walls: [{x: 300, y: 150, w: 300, h: 300}],
@@ -348,18 +409,18 @@
             ]
         },
         {
-            name: "8. Diagonal Alley", hint: "Tight angled parking.",
+            name: "8. Diagonal Alley", hint: "Tight angled parking.", targetTime: 15,
             start: {x: 100, y: 300, a: Math.PI/2},
             spot: {x: 600, y: 150, a: Math.PI/4}, 
             walls: [
-                {x: 400, y: 0, w: 20, h: 180}, // Shortened slightly
-                {x: 800, y: 0, w: 20, h: 300}, // Moved right
+                {x: 400, y: 0, w: 20, h: 180},
+                {x: 800, y: 0, w: 20, h: 300},
                 {x: 500, y: 300, w: 20, h: 350}
             ],
             traffic: []
         },
         {
-            name: "9. Busy Lot", hint: "Cross traffic to park.",
+            name: "9. Busy Lot", hint: "Cross traffic to park.", targetTime: 20,
             start: {x: 450, y: 600, a: 0},
             spot: {x: 80, y: 300, a: -Math.PI/2},
             walls: [{x: 200, y: 100, w: 500, h: 400}], 
@@ -371,7 +432,7 @@
             ]
         },
         {
-            name: "10. The Impossible", hint: "Don't scratch the paint.",
+            name: "10. The Impossible", hint: "Don't scratch the paint.", targetTime: 15,
             start: {x: 50, y: 50, a: Math.PI/2},
             spot: {x: 820, y: 550, a: Math.PI},
             walls: [
@@ -383,6 +444,48 @@
                 {x: 250, y: 500, vx: 0, vy: -6},
                 {x: 500, y: 100, vx: 0, vy: 6}
             ]
+        },
+        // --- NEW HARD LEVELS ---
+        {
+            name: "11. The Spiral", hint: "Follow the snail.", targetTime: 25,
+            start: {x: 100, y: 550, a: 0},
+            spot: {x: 450, y: 350, a: -Math.PI/2},
+            walls: [
+                {x: 200, y: 200, w: 20, h: 400}, // Vertical left
+                {x: 200, y: 200, w: 500, h: 20}, // Top
+                {x: 700, y: 200, w: 20, h: 300}, // Vertical right
+                {x: 400, y: 500, w: 320, h: 20}, // Bottom
+                {x: 400, y: 300, w: 20, h: 220}, // Inner Left
+                {x: 400, y: 300, w: 100, h: 20}, // Inner Top
+            ],
+            traffic: []
+        },
+        {
+            name: "12. Needle Thread", hint: "Don't touch the walls.", targetTime: 15,
+            start: {x: 50, y: 325, a: Math.PI/2},
+            spot: {x: 900, y: 325, a: Math.PI/2},
+            walls: [
+                {x: 0, y: 280, w: 1200, h: 20}, // Top Wall
+                {x: 0, y: 350, w: 1200, h: 20}, // Bottom Wall
+                // Small obstacles in the corridor
+                {x: 300, y: 300, w: 10, h: 10},
+                {x: 600, y: 340, w: 10, h: 10}
+            ],
+            traffic: []
+        },
+        {
+            name: "13. The Maze", hint: "Zig zag.", targetTime: 30,
+            start: {x: 50, y: 100, a: Math.PI/2},
+            spot: {x: 900, y: 550, a: Math.PI/2},
+            walls: [
+                {x: 200, y: 0, w: 20, h: 450},
+                {x: 450, y: 200, w: 20, h: 600},
+                {x: 700, y: 0, w: 20, h: 450},
+                {x: 0, y: 600, w: 200, h: 20},
+                {x: 220, y: 150, w: 100, h: 20},
+                {x: 550, y: 500, w: 100, h: 20}
+            ],
+            traffic: []
         }
     ];
 
@@ -391,6 +494,8 @@
     let currentLvlData;
 
     function initLevel(idx) {
+        if (timerInterval) clearInterval(timerInterval);
+        
         if (idx >= levels.length) {
             showEndScreen();
             return;
@@ -399,8 +504,10 @@
         currentLvlData = levels[idx];
         gameState = "PLAYING";
 
+        // Reset Physics
         player = new Car(currentLvlData.start.x, currentLvlData.start.y, currentLvlData.start.a);
         
+        // Traffic
         traffic = [];
         if (currentLvlData.traffic) {
             currentLvlData.traffic.forEach(t => {
@@ -408,30 +515,51 @@
             });
         }
 
+        // UI Reset
         uiLevel.innerText = currentLvlData.name;
         uiHint.innerText = currentLvlData.hint;
         uiStatus.style.display = 'none';
+        
+        // Timer Start
+        startTime = Date.now();
+        uiTimer.innerText = "00:00";
+        timerInterval = setInterval(() => {
+            const delta = Date.now() - startTime;
+            elapsedSecs = delta / 1000;
+            const secs = Math.floor(elapsedSecs);
+            const ms = Math.floor((delta % 1000) / 10);
+            uiTimer.innerText = `${secs < 10 ? '0'+secs : secs}:${ms < 10 ? '0'+ms : ms}`;
+        }, 50);
     }
 
     function checkCollision() {
         const pPoly = player.getPolygon();
-
         for (let w of currentLvlData.walls) {
-            const wPoly = [
-                {x: w.x, y: w.y}, {x: w.x+w.w, y: w.y}, 
-                {x: w.x+w.w, y: w.y+w.h}, {x: w.x, y: w.y+w.h}
-            ];
+            const wPoly = [{x: w.x, y: w.y}, {x: w.x+w.w, y: w.y}, {x: w.x+w.w, y: w.y+w.h}, {x: w.x, y: w.y+w.h}];
             if (polysIntersect(pPoly, wPoly)) return true;
         }
-
         for (let t of traffic) {
-            const tPoly = t.getPolygon();
-            if (polysIntersect(pPoly, tPoly)) return true;
+            if (polysIntersect(pPoly, t.getPolygon())) return true;
+        }
+        if (player.x < 0 || player.x > canvas.width || player.y < 0 || player.y > canvas.height) return true;
+        return false;
+    }
+
+    function calculateGrade(acc, time, target) {
+        // Penalty for being slow
+        let timePenalty = 0;
+        if (time > target) {
+            timePenalty = (time - target) * 3; // Lose 3% acc per second over
         }
         
-        if (player.x < 0 || player.x > canvas.width || player.y < 0 || player.y > canvas.height) return true;
-
-        return false;
+        const score = acc - timePenalty;
+        
+        if (score >= 95) return 'S';
+        if (score >= 85) return 'A';
+        if (score >= 70) return 'B';
+        if (score >= 50) return 'C';
+        if (score >= 30) return 'D';
+        return 'F';
     }
 
     function checkWin() {
@@ -451,26 +579,47 @@
         if (angDiff > Math.PI) angDiff = (Math.PI*2) - angDiff;
 
         if (dist < 20 && angDiff < 0.35) {
+            clearInterval(timerInterval);
             gameState = "PARKED";
             
+            // Calc Stats
             let acc = Math.max(0, 100 - (dist * 2) - (angDiff * 50));
             acc = Math.floor(acc);
             
-            levelScores[levelIndex] = acc;
+            const grade = calculateGrade(acc, elapsedSecs, currentLvlData.targetTime);
+            
+            levelResults.push({
+                level: levelIndex + 1,
+                name: currentLvlData.name,
+                time: elapsedSecs.toFixed(2),
+                acc: acc,
+                grade: grade
+            });
 
-            uiStatus.innerText = `PARKED! Accuracy: ${acc}%`;
-            uiStatus.style.color = "#2ecc71";
+            // Show HUD status
+            uiStatus.innerText = `PARKED! Grade: ${grade}`;
+            uiStatus.className = `grade-${grade}`; // for color
+            uiStatus.style.color = getGradeColor(grade);
             uiStatus.style.display = "block";
             
             setTimeout(() => {
                 initLevel(levelIndex + 1);
-            }, 2000);
+            }, 2500);
         }
+    }
+
+    function getGradeColor(g) {
+        if(g==='S') return '#f1c40f';
+        if(g==='A') return '#2ecc71';
+        if(g==='B') return '#3498db';
+        if(g==='C') return '#e67e22';
+        return '#e74c3c';
     }
 
     function drawScene() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // Walls
         ctx.fillStyle = "#95a5a6";
         for (let w of currentLvlData.walls) {
             ctx.fillRect(w.x, w.y, w.w, w.h);
@@ -479,11 +628,11 @@
             ctx.strokeRect(w.x, w.y, w.w, w.h);
         }
 
+        // Spot
         const s = currentLvlData.spot;
         ctx.save();
         ctx.translate(s.x, s.y);
         ctx.rotate(s.a);
-        
         ctx.strokeStyle = "white";
         ctx.lineWidth = 4;
         ctx.beginPath();
@@ -492,7 +641,7 @@
         ctx.lineTo(PARK_W/2, PARK_H/2);
         ctx.lineTo(PARK_W/2, -PARK_H/2);
         ctx.stroke();
-
+        // Arrow
         ctx.fillStyle = "rgba(255,255,255,0.2)";
         ctx.beginPath();
         ctx.moveTo(0, -20);
@@ -502,7 +651,6 @@
         ctx.restore();
 
         traffic.forEach(t => t.draw());
-
         drawCar(player.x, player.y, player.angle);
     }
 
@@ -513,7 +661,8 @@
             
             if (checkCollision()) {
                 gameState = "CRASHED";
-                uiStatus.innerText = "CRASHED! Press 'R' to Restart";
+                clearInterval(timerInterval);
+                uiStatus.innerText = "CRASHED! Press 'R'";
                 uiStatus.style.color = "#e74c3c";
                 uiStatus.style.display = "block";
             } else {
@@ -528,20 +677,39 @@
         gameState = "END";
         endScreen.style.display = "flex";
         scoreBody.innerHTML = "";
-        let total = 0;
-        levelScores.forEach((score, i) => {
-            total += score;
+        
+        let gpaTotal = 0;
+        const gpaMap = {'S':4.3, 'A':4.0, 'B':3.0, 'C':2.0, 'D':1.0, 'F':0};
+
+        levelResults.forEach(res => {
+            gpaTotal += gpaMap[res.grade] || 0;
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${i+1}</td><td>${levels[i].name}</td><td>${score}%</td>`;
+            tr.innerHTML = `
+                <td>${res.level}</td>
+                <td>${res.name}</td>
+                <td>${res.time}s</td>
+                <td>${res.acc}%</td>
+                <td class="grade-${res.grade}">${res.grade}</td>
+            `;
             scoreBody.appendChild(tr);
         });
-        const avg = Math.floor(total / levels.length);
-        finalScoreText.innerText = `Total Average: ${avg}%`;
+
+        // Calculate Final Grade
+        const avgGPA = gpaTotal / levelResults.length;
+        let finalGrade = 'F';
+        if (avgGPA >= 4.1) finalGrade = 'S';
+        else if (avgGPA >= 3.5) finalGrade = 'A';
+        else if (avgGPA >= 2.5) finalGrade = 'B';
+        else if (avgGPA >= 1.5) finalGrade = 'C';
+        else if (avgGPA >= 0.5) finalGrade = 'D';
+
+        finalGradeTitle.innerText = `Overall Rank: ${finalGrade}`;
+        finalGradeTitle.className = `grade-${finalGrade}`;
     }
 
     function restartGame() {
         endScreen.style.display = "none";
-        levelScores = [];
+        levelResults = [];
         initLevel(0);
     }
 
